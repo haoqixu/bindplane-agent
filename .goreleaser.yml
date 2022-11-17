@@ -243,6 +243,7 @@ dockers:
     extra_files:
       - plugins
       - config/example.yaml
+      - LICENSE
   - id: ubi8-arm64
     goos: linux
     goarch: arm64
@@ -261,6 +262,7 @@ dockers:
     extra_files:
       - plugins
       - config/example.yaml
+      - LICENSE
 
 docker_manifests:
   - name_template: "observiq/observiq-otel-collector:latest"

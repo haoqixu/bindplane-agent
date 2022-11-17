@@ -35,6 +35,9 @@ FROM openjdk:8u312-slim-buster as openjdk
 FROM registry.access.redhat.com/ubi8:8.7
 WORKDIR /
 
+RUN mkdir /licenses
+COPY LICENSE /licenses
+
 RUN dnf install -y \
         systemd tzdata ca-certificates && \
   	dnf clean all && \
