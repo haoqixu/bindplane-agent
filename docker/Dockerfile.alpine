@@ -29,25 +29,55 @@ RUN curl -L \
 FROM amazoncorretto:8-alpine3.17-jre as jre
 
 
-# Download ca-certificate bundle, timezone database
-# and a systemd install.
+# Use debian:stable to retrieve journalctl. We need to pin to this exact
+# image to be sure our version of systemd does not change. If we update
+# systemd, make sure the COPY commands for journalctl are updated to reflect
+# the new shared libraries. You can use the `ldd /bin/journalctl` command
+# to see the list of shared libraries.
 #
-FROM ubuntu:20.04 as packages
-RUN apt-get update && \
-    apt-get install -y \
-        --no-install-recommends \
-        systemd tzdata ca-certificates && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
+FROM debian:stable-20230703 as journal
+RUN apt-get update -qq && apt-get install systemd -y
+RUN mkdir /usr/lib/journald
+RUN ldd /bin/journalctl | grep -v linux-vdso.so.1 | awk '{print $3}' | xargs -I{} cp {} /usr/lib/journald
 
 # Final Stage
 #
 FROM alpine:3.17
 WORKDIR /
 
-COPY --from=packages /etc/ssl /etc/ssl
-COPY --from=packages /usr/share/zoneinfo /usr/share/zoneinfo
+# TODO(jsirianni): Add systemd
+RUN apk --no-cache add ca-certificates tzdata
+
+# Copy the journalctl binary and required shared libaries. 
+COPY --from=journal /bin/journalctl /bin/journalctl
+COPY --from=journal /usr/lib/journald /usr/lib/journald
+COPY --from=journal /usr/lib/ld-linux-*.so.1 /usr/lib/journald
+# COPY --from=journal /usr/lib/ld-linux-*.so.1 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/systemd/libsystemd-shared-252.so /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libc.so.6 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libacl.so.1 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libblkid.so.1 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libcap.so.2 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libcrypt.so.1 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libgcrypt.so.20 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libip4tc.so.2 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libkmod.so.2 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/liblz4.so.1 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libmount.so.1 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libcrypto.so.3 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libpam.so.0 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libseccomp.so.2 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libselinux.so.1 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libzstd.so.1 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/liblzma.so.5 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libm.so.6 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libgpg-error.so.0 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libaudit.so.1 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libpcre2-8.so.0 /lib/journald
+# COPY --from=journal /usr/lib/*-linux-gnu/libcap-ng.so.0 /lib/journald
+
+# LD_LIBRARY_PATH is not set by default, so point it to /lib/journald.
+ENV LD_LIBRARY_PATH=/usr/lib/journald
 
 RUN adduser \
     --disabled-password \
